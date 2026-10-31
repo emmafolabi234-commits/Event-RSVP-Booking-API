@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Local environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+
+# Generated output and test coverage
+dist/
+coverage/
+
+# OS files
+.DS_Store
+Thumbs.db

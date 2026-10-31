@@ -1,0 +1,267 @@
+RSVP API - POSTMAN DOCUMENTATION
+
+BASE URL
+When running locally, the API defaults to:
+http://localhost:3000
+
+In Postman, create an environment variable:
+  baseUrl = http://localhost:3000
+
+Use {{baseUrl}} in request URLs. If the server uses a different PORT, update
+baseUrl accordingly.
+
+All request and response bodies use JSON. For requests with a body, select
+Body > raw > JSON in Postman, or set:
+  Content-Type: application/json
+
+AUTHENTICATION
+--------------
+Organizer and attendee registration/login return a token. For protected
+requests, set:
+  Authorization: Bearer <token>
+
+Recommended Postman environment variables:
+  organizerToken = token returned by organizer registration/login
+  attendeeToken  = token returned by attendee registration/login
+
+You can set the authorization header manually, or choose Authorization >
+Bearer Token and enter {{organizerToken}} or {{attendeeToken}}.
+
+Organizer-only endpoints require an organizer token. Attendee-only endpoints
+require an attendee token. Tokens expire after 12 hours.
+
+ENDPOINTS
+=========
+
+HEALTH
+------
+
+GET {{baseUrl}}/api/health
+Authentication: None
+Body: None
+
+Success response (200):
+{
+  "success": true,
+  "message": "RSVP API is running."
+}
+
+
+ORGANIZERS
+----------
+
+Register organizer
+POST {{baseUrl}}/api/organizers/register
+Authentication: None
+
+Body:
+{
+  "email": "organizer@example.com",
+  "password": "a-secure-password-12"
+}
+
+Password must be 12-128 characters. Email is normalized to lowercase.
+Success response (201) contains data.organizer and data.token.
+
+Log in organizer
+POST {{baseUrl}}/api/organizers/login
+Authentication: None
+
+Body:
+{
+  "email": "organizer@example.com",
+  "password": "a-secure-password-12"
+}
+
+Success response (200) contains data.organizer and data.token.
+Invalid credentials return 401.
+
+
+ATTENDEES
+---------
+
+Register attendee
+POST {{baseUrl}}/api/attendees/register
+Authentication: None
+
+Body:
+{
+  "name": "Alex Example",
+  "email": "alex@example.com",
+  "password": "a-secure-password-12",
+  "phoneNumber": "555-0100"
+}
+
+phoneNumber is optional. Name must be at least 2 characters. Password must
+be 12-128 characters. Email is normalized to lowercase.
+Success response (201) contains data.attendee and data.token.
+
+Log in attendee
+POST {{baseUrl}}/api/attendees/login
+Authentication: None
+
+Body:
+{
+  "email": "alex@example.com",
+  "password": "a-secure-password-12"
+}
+
+Success response (200) contains data.attendee and data.token.
+Invalid credentials return 401.
+
+Create attendee (organizer-managed)
+POST {{baseUrl}}/api/attendees
+Authentication: Organizer token
+
+Body:
+{
+  "name": "Jamie Example",
+  "email": "jamie@example.com",
+  "phoneNumber": "555-0101"
+}
+
+Success response: 201.
+
+List attendees
+GET {{baseUrl}}/api/attendees
+Authentication: Organizer token
+Body: None
+
+Get own attendee profile
+GET {{baseUrl}}/api/attendees/{{attendeeId}}
+Authentication: Attendee token for that attendee
+Body: None
+
+Update own attendee profile
+PUT {{baseUrl}}/api/attendees/{{attendeeId}}
+Authentication: Attendee token for that attendee
+
+Body (send one or more fields):
+{
+  "name": "Alex Updated",
+  "email": "alex.updated@example.com",
+  "phoneNumber": "555-0102"
+}
+
+Delete own attendee account
+DELETE {{baseUrl}}/api/attendees/{{attendeeId}}
+Authentication: Attendee token for that attendee
+Body: None
+
+List own events and reservations
+GET {{baseUrl}}/api/attendees/{{attendeeId}}/events
+Authentication: Attendee token for that attendee
+Body: None
+
+
+EVENTS
+------
+
+Create event
+POST {{baseUrl}}/api/events
+Authentication: Organizer token
+
+Body:
+{
+  "title": "Community Meetup",
+  "description": "Monthly gathering",
+  "venueOrLink": "Community Hall",
+  "dateTime": "2026-11-01T10:00:00.000Z",
+  "maxCapacity": 50
+}
+
+title must be at least 3 characters. description is optional. dateTime must
+be an ISO date-time. maxCapacity must be a positive integer.
+Success response: 201.
+
+List events
+GET {{baseUrl}}/api/events
+Authentication: None
+Body: None
+
+Optional query parameters:
+  upcoming=true   Return events from now onward.
+  upcoming=false  Return events before now.
+  startDate       Inclusive lower date/time bound.
+  endDate         Inclusive upper date/time bound.
+
+Example:
+GET {{baseUrl}}/api/events?upcoming=true&startDate=2026-11-01T00:00:00.000Z&endDate=2026-12-01T23:59:59.000Z
+
+startDate and endDate must be parseable date values. If both are supplied,
+startDate must be on or before endDate.
+
+Get event
+GET {{baseUrl}}/api/events/{{eventId}}
+Authentication: None
+Body: None
+
+Update event
+PUT {{baseUrl}}/api/events/{{eventId}}
+Authentication: Organizer token for the event's owner
+
+Body (send one or more fields):
+{
+  "title": "Updated Community Meetup",
+  "description": "Updated event details",
+  "venueOrLink": "Community Hall - Room B",
+  "dateTime": "2026-11-02T10:00:00.000Z",
+  "maxCapacity": 60
+}
+
+maxCapacity cannot be reduced below the number of confirmed registrations.
+Increasing capacity promotes waitlisted reservations in order.
+
+Delete event
+DELETE {{baseUrl}}/api/events/{{eventId}}
+Authentication: Organizer token for the event's owner
+Body: None
+
+List event reservations and attendees
+GET {{baseUrl}}/api/events/{{eventId}}/attendees
+Authentication: Organizer token for the event's owner
+Body: None
+
+
+RSVPS
+-----
+
+Create RSVP
+POST {{baseUrl}}/api/rsvps
+Authentication: Attendee token
+
+Body:
+{
+  "eventId": "{{eventId}}"
+}
+
+eventId must be a UUID. The reservation status is CONFIRMED when capacity is
+available, otherwise WAITLISTED. Success response: 201.
+
+Cancel own RSVP
+DELETE {{baseUrl}}/api/rsvps/{{reservationId}}
+Authentication: Attendee token belonging to the reservation's attendee
+Body: None
+
+Cancelling a confirmed reservation promotes the oldest waitlisted attendee,
+if any. Success response includes cancelledReservationId and
+promotedReservation (null if nobody was promoted).
+
+
+COMMON RESPONSES
+----------------
+
+Successful requests generally return:
+{
+  "success": true,
+  "data": ...
+}
+
+Validation errors return HTTP 400 and include an error and details array.
+Missing resources return HTTP 404. Missing, invalid, or expired credentials
+return HTTP 401. A valid token with the wrong role returns HTTP 403. Duplicate
+records and capacity conflicts can return HTTP 409.
+
+GET requests and DELETE requests do not require a request body. For protected
+requests, ensure the correct token is selected in Postman's Authorization
+settings.
